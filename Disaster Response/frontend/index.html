@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disaster Response Platform Frontend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e0e0e0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #555;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .btn-primary {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+        .btn-primary:hover {
+            background-color: #45a049;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background-color: #007bff;
+            color: white;
+            border: none;
+        }
+        .btn-secondary:hover {
+            background-color: #0056b3;
+            transform: translateY(-1px);
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+            transform: translateY(-1px);
+        }
+        .btn-info { /* Added for verify button */
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+        }
+        .btn-info:hover {
+            background-color: #138496;
+            transform: translateY(-1px);
+        }
+        .card {
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .card-header {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0.5rem;
+        }
+        .message-box {
+            background-color: #e6f7ff;
+            border: 1px solid #91d5ff;
+            color: #1890ff;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .error-box {
+            background-color: #fff0f6;
+            border: 1px solid #ffadd2;
+            color: #eb2f96;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center mb-6 section-title">Disaster Response Coordination Platform</h1>
+
+        <div id="auth-section" class="mb-8 p-6 card">
+            <h2 class="text-2xl font-semibold mb-4 card-header">Authentication (Mock)</h2>
+            <div class="flex items-center space-x-4">
+                <label for="userIdSelect" class="font-medium">Select User:</label>
+                <select id="userIdSelect" class="flex-grow p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                    <option value="netrunnerX">netrunnerX (Admin, Contributor)</option>
+                    <option value="reliefAdmin">reliefAdmin (Admin)</option>
+                    <option value="citizen1">citizen1 (Citizen)</option>
+                    <option value="volunteerA">volunteerA (Contributor)</option>
+                </select>
+                <button id="loginBtn" class="btn btn-secondary">Login / Set User</button>
+            </div>
+            <p id="currentUserDisplay" class="mt-4 text-gray-700">Current User: None</p>
+        </div>
+
+        <div id="message-area" class="mt-4"></div>
+
+        <!-- Create/Update Disaster Form -->
+        <div class="mb-8 p-6 card">
+            <h2 class="text-2xl font-semibold mb-4 section-title">Manage Disasters</h2>
+            <form id="disasterForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="disasterTitle">Title:</label>
+                    <input type="text" id="disasterTitle" placeholder="e.g., NYC Flood" required class="w-full">
+                </div>
+                <div class="form-group">
+                    <label for="disasterLocationName">Location Name:</label>
+                    <input type="text" id="disasterLocationName" placeholder="e.g., Manhattan, NYC" required class="w-full">
+                </div>
+                <div class="form-group col-span-1 md:col-span-2">
+                    <label for="disasterDescription">Description:</label>
+                    <textarea id="disasterDescription" rows="3" placeholder="Heavy flooding in Manhattan, urgent need for shelter." required class="w-full"></textarea>
+                </div>
+                <div class="form-group col-span-1 md:col-span-2">
+                    <label for="disasterTags">Tags (comma-separated):</label>
+                    <input type="text" id="disasterTags" placeholder="e.g., flood, urgent, shelter" required class="w-full">
+                </div>
+                <div class="col-span-1 md:col-span-2 flex justify-end space-x-2">
+                    <button type="submit" class="btn btn-primary">Create Disaster</button>
+                    <button type="button" id="updateDisasterBtn" class="btn btn-secondary hidden">Update Selected Disaster</button>
+                    <button type="button" id="cancelUpdateBtn" class="btn btn-danger hidden">Cancel Update</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Existing Disasters List -->
+        <div class="mb-8 p-6 card">
+            <h2 class="text-2xl font-semibold mb-4 section-title">Existing Disasters</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                    <thead>
+                        <tr class="bg-gray-100 text-left text-gray-600 uppercase text-sm leading-normal">
+                            <th class="py-3 px-6 text-left">Title</th>
+                            <th class="py-3 px-6 text-left">Location</th>
+                            <th class="py-3 px-6 text-left">Tags</th>
+                            <th class="py-3 px-6 text-left">Owner</th>
+                            <th class="py-3 px-6 text-left">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="disastersList" class="text-gray-700 text-sm">
+                        <!-- Disasters will be loaded here -->
+                        <tr><td colspan="5" class="py-4 text-center">Loading disasters...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <button id="refreshDisastersBtn" class="btn btn-secondary mt-4">Refresh Disasters</button>
+        </div>
+
+        <!-- Disaster Details and Related Data -->
+        <div id="disasterDetailsSection" class="hidden mb-8 p-6 card">
+            <h2 class="text-2xl font-semibold mb-4 section-title">Disaster Details & Related Data</h2>
+            <p class="text-lg font-bold mb-2">Selected Disaster: <span id="selectedDisasterTitle"></span> (<span id="selectedDisasterId"></span>)</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Geocoding -->
+                <div class="p-4 card">
+                    <h3 class="text-xl font-semibold mb-3 card-header">Geocode Location</h3>
+                    <p id="currentDisasterLocation" class="mb-2 text-gray-700"></p>
+                    <button id="geocodeBtn" class="btn btn-primary">Geocode/Update Location</button>
+                    <p class="mt-2 text-sm text-gray-500">Uses Gemini for extraction, mapping service for lat/lon.</p>
+                </div>
+
+                <!-- Reports Management -->
+                <div class="p-4 card">
+                    <h3 class="text-xl font-semibold mb-3 card-header">User Reports</h3>
+                    <form id="reportForm" class="mb-4">
+                        <input type="text" id="reportContent" placeholder="Report content (e.g., 'Need food')" required class="w-full mb-2">
+                        <input type="text" id="reportImageUrl" placeholder="Image URL (optional)" class="w-full mb-2">
+                        <button type="submit" class="btn btn-primary">Submit Report</button>
+                    </form>
+                    <ul id="reportsList" class="space-y-2">
+                        <!-- Reports will be loaded here -->
+                        <li class="text-gray-500">No reports for this disaster yet.</li>
+                    </ul>
+                </div>
+
+                <!-- Resources Management -->
+                <div class="p-4 card">
+                    <h3 class="text-xl font-semibold mb-3 card-header">Resources</h3>
+                    <form id="resourceForm" class="mb-4">
+                        <input type="text" id="resourceName" placeholder="Resource Name (e.g., 'Red Cross Shelter')" required class="w-full mb-2">
+                        <input type="text" id="resourceLocationName" placeholder="Resource Location (e.g., 'Lower East Side, NYC')" required class="w-full mb-2">
+                        <select id="resourceType" class="w-full mb-2 p-2 border border-gray-300 rounded-md">
+                            <option value="shelter">Shelter</option>
+                            <option value="food">Food</option>
+                            <option value="medical">Medical</option>
+                            <option value="water">Water</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary">Add Resource</button>
+                    </form>
+                    <h4 class="font-medium mt-4 mb-2">Filter Resources:</h4>
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        <input type="number" id="resourceLat" placeholder="Latitude" class="w-32 p-2 border border-gray-300 rounded-md">
+                        <input type="number" id="resourceLon" placeholder="Longitude" class="w-32 p-2 border border-gray-300 rounded-md">
+                        <input type="number" id="resourceRadius" value="10000" placeholder="Radius (meters)" class="w-32 p-2 border border-gray-300 rounded-md">
+                        <select id="resourceFilterType" class="w-32 p-2 border border-gray-300 rounded-md">
+                            <option value="">All Types</option>
+                            <option value="shelter">Shelter</option>
+                            <option value="food">Food</option>
+                            <option value="medical">Medical</option>
+                            <option value="water">Water</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <button id="filterResourcesBtn" class="btn btn-secondary">Filter Resources</button>
+                    </div>
+                    <ul id="resourcesList" class="space-y-2">
+                        <!-- Resources will be loaded here -->
+                        <li class="text-gray-500">No resources for this disaster yet.</li>
+                    </ul>
+                </div>
+
+                <!-- Social Media Updates -->
+                <div class="p-4 card">
+                    <h3 class="text-xl font-semibold mb-3 card-header">Social Media Reports</h3>
+                    <div class="flex mb-3">
+                        <input type="text" id="socialMediaQuery" placeholder="Filter by keyword" class="flex-grow p-2 border border-gray-300 rounded-md mr-2">
+                        <button id="fetchSocialMediaBtn" class="btn btn-secondary">Fetch</button>
+                    </div>
+                    <ul id="socialMediaList" class="space-y-2">
+                        <!-- Social media reports will be loaded here -->
+                        <li class="text-gray-500">No social media reports for this disaster yet.</li>
+                    </ul>
+                </div>
+
+                <!-- Official Updates -->
+                <div class="p-4 card">
+                    <h3 class="text-xl font-semibold mb-3 card-header">Official Updates</h3>
+                    <div class="flex mb-3">
+                        <select id="officialUpdateSource" class="flex-grow p-2 border border-gray-300 rounded-md mr-2">
+                            <option value="">All Sources</option>
+                            <option value="fema">FEMA</option>
+                            <option value="redcross">Red Cross</option>
+                        </select>
+                        <button id="fetchOfficialUpdatesBtn" class="btn btn-secondary">Fetch</button>
+                    </div>
+                    <ul id="officialUpdatesList" class="space-y-2">
+                        <!-- Official updates will be loaded here -->
+                        <li class="text-gray-500">No official updates for this disaster yet.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/api'; // Ensure this matches your backend URL
+        const socket = io('http://localhost:3000'); // Connect to your Socket.IO server
+
+        let currentUser = null;
+        let selectedDisaster = null;
+
+        // DOM Elements
+        const messageArea = document.getElementById('message-area');
+        const currentUserDisplay = document.getElementById('currentUserDisplay');
+        const userIdSelect = document.getElementById('userIdSelect');
+        const loginBtn = document.getElementById('loginBtn');
+
+        const disasterForm = document.getElementById('disasterForm');
+        const disasterTitleInput = document.getElementById('disasterTitle');
+        const disasterLocationNameInput = document.getElementById('disasterLocationName');
+        const disasterDescriptionInput = document.getElementById('disasterDescription');
+        const disasterTagsInput = document.getElementById('disasterTags');
+        const updateDisasterBtn = document.getElementById('updateDisasterBtn');
+        const cancelUpdateBtn = document.getElementById('cancelUpdateBtn');
+        const disastersList = document.getElementById('disastersList');
+        const refreshDisastersBtn = document.getElementById('refreshDisastersBtn');
+
+        const disasterDetailsSection = document.getElementById('disasterDetailsSection');
+        const selectedDisasterTitle = document.getElementById('selectedDisasterTitle');
+        const selectedDisasterId = document.getElementById('selectedDisasterId');
+        const currentDisasterLocation = document.getElementById('currentDisasterLocation');
+        const geocodeBtn = document.getElementById('geocodeBtn');
+
+        const reportForm = document.getElementById('reportForm');
+        const reportContentInput = document.getElementById('reportContent');
+        const reportImageUrlInput = document.getElementById('reportImageUrl');
+        const reportsList = document.getElementById('reportsList');
+
+        const resourceForm = document.getElementById('resourceForm');
+        const resourceNameInput = document.getElementById('resourceName');
+        const resourceLocationNameInput = document.getElementById('resourceLocationName');
+        const resourceTypeSelect = document.getElementById('resourceType');
+        const resourcesList = document.getElementById('resourcesList');
+        const resourceLatInput = document.getElementById('resourceLat');
+        const resourceLonInput = document.getElementById('resourceLon');
+        const resourceRadiusInput = document.getElementById('resourceRadius');
+        const resourceFilterTypeSelect = document.getElementById('resourceFilterType');
+        const filterResourcesBtn = document.getElementById('filterResourcesBtn');
+
+        const socialMediaQueryInput = document.getElementById('socialMediaQuery');
+        const fetchSocialMediaBtn = document.getElementById('fetchSocialMediaBtn');
+        const socialMediaList = document.getElementById('socialMediaList');
+
+        const officialUpdateSourceSelect = document.getElementById('officialUpdateSource');
+        const fetchOfficialUpdatesBtn = document.getElementById('fetchOfficialUpdatesBtn');
+        const officialUpdatesList = document.getElementById('officialUpdatesList');
+
+        // --- Utility Functions ---
+
+        function showMessage(type, message) {
+            messageArea.innerHTML = ''; // Clear previous messages
+            const div = document.createElement('div');
+            div.className = `message-box ${type === 'error' ? 'error-box' : 'message-box'} mb-4`;
+            div.textContent = message;
+            messageArea.appendChild(div);
+            // Auto-hide after some seconds
+            setTimeout(() => {
+                div.remove();
+            }, 5000);
+        }
+
+        async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
+            if (!currentUser) {
+                showMessage('error', 'Please select a user to log in.');
+                return null;
+            }
+
+            const headers = {
+                'X-User-Id': currentUser.id,
+                'Content-Type': 'application/json'
+            };
+
+            const options = {
+                method,
+                headers,
+            };
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || `HTTP error! status: ${response.status}`);
+                }
+                return data;
+            } catch (error) {
+                showMessage('error', `API Request Failed: ${error.message}`);
+                console.error('API Request Error:', error);
+                return null;
+            }
+        }
+
+        // --- Authentication ---
+
+        async function loginUser() {
+            const userId = userIdSelect.value;
+            // Temporarily set current user ID for the initial `makeAuthenticatedRequest` call
+            // In a real app, this would be handled by a secure login process returning a token
+            currentUser = { id: userId, username: userId, roles: [] }; // Initial mock user object for the request
+
+            try {
+                // Call /api/auth/me. The makeAuthenticatedRequest will add the X-User-Id header.
+                const data = await makeAuthenticatedRequest(`${API_BASE_URL}/auth/me`, 'GET'); // No need for ?userId= here
+
+                if (data && data.user) {
+                    currentUser = data.user; // Update with full user data from backend
+                    currentUserDisplay.textContent = `Current User: ${currentUser.username} (${currentUser.id}) - Roles: ${currentUser.roles.join(', ')}`;
+                    showMessage('success', `Logged in as ${currentUser.username}`);
+                    fetchDisasters(); // Refresh disasters after successful login
+                } else {
+                    currentUser = null; // Reset if login failed
+                    currentUserDisplay.textContent = `Current User: None`;
+                    showMessage('error', 'Login failed. Invalid user ID or server error.');
+                }
+            } catch (error) {
+                currentUser = null; // Reset if error occurred
+                currentUserDisplay.textContent = `Current User: None`;
+                showMessage('error', `Login failed: ${error.message}`);
+                console.error('Login error:', error);
+            }
+        }
+
+        loginBtn.addEventListener('click', loginUser);
+
+        // --- Disaster Management ---
+
+        async function fetchDisasters() {
+            disastersList.innerHTML = '<tr><td colspan="5" class="py-4 text-center">Loading disasters...</td></tr>';
+            // Use makeAuthenticatedRequest for fetching disasters too
+            const disasters = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters`);
+            if (disasters) { // makeAuthenticatedRequest returns null on error
+                renderDisasters(disasters);
+            } else {
+                 disastersList.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">Failed to load disasters. Please ensure backend is running and you are authenticated.</td></tr>';
+            }
+        }
+
+        function renderDisasters(disasters) {
+            disastersList.innerHTML = '';
+            if (disasters.length === 0) {
+                disastersList.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">No disasters found.</td></tr>';
+                return;
+            }
+            disasters.forEach(disaster => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-200 hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="py-3 px-6 text-left whitespace-nowrap">${disaster.title}</td>
+                    <td class="py-3 px-6 text-left">${disaster.location_name}</td>
+                    <td class="py-3 px-6 text-left">${disaster.tags ? disaster.tags.join(', ') : 'N/A'}</td>
+                    <td class="py-3 px-6 text-left">${disaster.owner_id}</td>
+                    <td class="py-3 px-6 text-left">
+                        <div class="flex item-center justify-start space-x-2">
+                            <button class="btn btn-primary btn-sm select-disaster-btn" data-id="${disaster.id}" data-title="${disaster.title}" data-location="${disaster.location_name}" data-description="${disaster.description}" data-tags="${disaster.tags ? disaster.tags.join(',') : ''}">Select</button>
+                            <button class="btn btn-secondary btn-sm edit-disaster-btn" data-id="${disaster.id}" data-title="${disaster.title}" data-location="${disaster.location_name}" data-description="${disaster.description}" data-tags="${disaster.tags ? disaster.tags.join(',') : ''}">Edit</button>
+                            <button class="btn btn-danger btn-sm delete-disaster-btn" data-id="${disaster.id}">Delete</button>
+                            <button class="btn btn-sm btn-info geocode-disaster-btn" data-id="${disaster.id}" data-description="${disaster.description}" data-location="${disaster.location_name}">Geocode</button>
+                        </div>
+                    </td>
+                `;
+                disastersList.appendChild(row);
+            });
+
+            // Add event listeners for select, edit, delete buttons
+            document.querySelectorAll('.select-disaster-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    selectDisaster({
+                        id: e.target.dataset.id,
+                        title: e.target.dataset.title,
+                        location_name: e.target.dataset.location,
+                        description: e.target.dataset.description,
+                        tags: e.target.dataset.tags.split(',')
+                    });
+                });
+            });
+
+            document.querySelectorAll('.edit-disaster-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const data = e.target.dataset;
+                    disasterTitleInput.value = data.title;
+                    disasterLocationNameInput.value = data.location;
+                    disasterDescriptionInput.value = data.description;
+                    disasterTagsInput.value = data.tags;
+                    selectedDisaster = { id: data.id }; // Temporarily set selectedDisaster for update logic
+                    disasterForm.querySelector('button[type="submit"]').classList.add('hidden');
+                    updateDisasterBtn.classList.remove('hidden');
+                    cancelUpdateBtn.classList.remove('hidden');
+                    showMessage('info', `Editing disaster: ${data.title}`);
+                });
+            });
+
+            document.querySelectorAll('.delete-disaster-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const disasterId = e.target.dataset.id;
+                    // Changed alert() to confirm() and then custom message box if confirm is not available
+                    if (confirm('Are you sure you want to delete this disaster?')) {
+                        const success = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${disasterId}`, 'DELETE');
+                        if (success) {
+                            showMessage('success', 'Disaster deleted successfully!');
+                            fetchDisasters();
+                            if (selectedDisaster && selectedDisaster.id === disasterId) {
+                                // If deleted disaster was currently selected, clear details
+                                selectedDisaster = null;
+                                disasterDetailsSection.classList.add('hidden');
+                            }
+                        }
+                    } else {
+                        showMessage('info', 'Disaster deletion cancelled.');
+                    }
+                });
+            });
+
+            document.querySelectorAll('.geocode-disaster-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const disasterId = e.target.dataset.id;
+                    const description = e.target.dataset.description;
+                    const data = await makeAuthenticatedRequest(`${API_BASE_URL}/geocode`, 'POST', { disasterId, description });
+                    if (data) {
+                        showMessage('success', `Location geocoded and updated for ${data.title}`);
+                        fetchDisasters(); // Refresh list to show updated location
+                        if (selectedDisaster && selectedDisaster.id === disasterId) {
+                            // Update selected disaster's displayed location immediately if it's the current one
+                            selectedDisaster.location_name = data.location_name;
+                            currentDisasterLocation.textContent = `Geocoded Location: ${data.location_name} (Updated)`;
+                        }
+                    }
+                });
+            });
+        }
+
+        refreshDisastersBtn.addEventListener('click', fetchDisasters);
+
+        disasterForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = disasterTitleInput.value;
+            const location_name = disasterLocationNameInput.value;
+            const description = disasterDescriptionInput.value;
+            const tags = disasterTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+
+            const payload = { title, location_name, description, tags };
+
+            let data;
+            if (selectedDisaster && updateDisasterBtn.classList.contains('hidden') === false) {
+                // This logic is for updating an existing disaster
+                data = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${selectedDisaster.id}`, 'PUT', payload);
+                if (data) {
+                    showMessage('success', `Disaster "${data.title}" updated successfully!`);
+                    selectedDisaster = null; // Clear selected disaster after update
+                    disasterForm.reset();
+                    disasterForm.querySelector('button[type="submit"]').classList.remove('hidden');
+                    updateDisasterBtn.classList.add('hidden');
+                    cancelUpdateBtn.classList.add('hidden');
+                    fetchDisasters(); // Refresh the list
+                }
+            } else {
+                // This logic is for creating a new disaster
+                data = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters`, 'POST', payload);
+                if (data) {
+                    showMessage('success', `Disaster "${data.title}" created successfully!`);
+                    disasterForm.reset();
+                    fetchDisasters(); // Refresh the list
+                }
+            }
+        });
+
+        updateDisasterBtn.addEventListener('click', async () => {
+            // Re-trigger form submission which now handles update logic
+            disasterForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        });
+
+        cancelUpdateBtn.addEventListener('click', () => {
+            selectedDisaster = null;
+            disasterForm.reset();
+            disasterForm.querySelector('button[type="submit"]').classList.remove('hidden');
+            updateDisasterBtn.classList.add('hidden');
+            cancelUpdateBtn.classList.add('hidden');
+            showMessage('info', 'Disaster update cancelled.');
+        });
+
+        // --- Select Disaster to View Details ---
+        async function selectDisaster(disaster) {
+            selectedDisaster = disaster;
+            selectedDisasterTitle.textContent = disaster.title;
+            selectedDisasterId.textContent = disaster.id;
+            // Ensure location is updated if present, otherwise default to location_name
+            currentDisasterLocation.textContent = `Location Name: ${disaster.location_name || 'N/A'}`;
+            // If the disaster object directly contains the lat/lon (after geocoding), display it
+            if (disaster.location && typeof disaster.location === 'object' && disaster.location.coordinates) {
+                 currentDisasterLocation.textContent += ` (Lat: ${disaster.location.coordinates[1]}, Lon: ${disaster.location.coordinates[0]})`;
+            } else if (disaster.location_name) { // Fallback if no specific coordinates
+                 currentDisasterLocation.textContent = `Location Name: ${disaster.location_name}`;
+            }
+
+            disasterDetailsSection.classList.remove('hidden');
+
+            // Fetch and render related data for the selected disaster
+            fetchReports(disaster.id);
+            fetchResources(disaster.id);
+            fetchSocialMedia(disaster.id);
+            fetchOfficialUpdates(disaster.id);
+        }
+
+        // --- Reports ---
+        async function fetchReports(disasterId) {
+            reportsList.innerHTML = '<li class="text-gray-500">Loading reports...</li>';
+            const reports = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${disasterId}/reports`);
+            renderReports(reports);
+        }
+
+        function renderReports(reports) {
+            reportsList.innerHTML = '';
+            if (!reports || reports.length === 0) {
+                reportsList.innerHTML = '<li class="text-gray-500">No reports for this disaster yet.</li>';
+                return;
+            }
+            reports.forEach(report => {
+                const li = document.createElement('li');
+                li.className = 'p-3 border border-gray-200 rounded-md bg-white shadow-sm flex justify-between items-center';
+                li.innerHTML = `
+                    <div>
+                        <p class="font-medium">${report.content}</p>
+                        <p class="text-xs text-gray-500">By: ${report.user_id} | Status: <span class="font-semibold ${report.verification_status === 'verified' ? 'text-green-600' : report.verification_status === 'unverified' ? 'text-red-600' : 'text-yellow-600'}">${report.verification_status}</span></p>
+                        ${report.image_url ? `<p class="text-xs text-blue-500"><a href="${report.image_url}" target="_blank">View Image</a></p>` : ''}
+                    </div>
+                    <button class="btn btn-sm btn-info verify-report-btn" data-report-id="${report.id}" data-image-url="${report.image_url}">Verify Image</button>
+                `;
+                reportsList.appendChild(li);
+            });
+
+            document.querySelectorAll('.verify-report-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const reportId = e.target.dataset.reportId;
+                    const imageUrl = e.target.dataset.imageUrl;
+                    if (!imageUrl || imageUrl === 'null' || imageUrl === 'undefined') {
+                        showMessage('error', 'No image URL available for this report to verify.');
+                        return;
+                    }
+                    if (!selectedDisaster) {
+                        showMessage('error', 'Please select a disaster first.');
+                        return;
+                    }
+
+                    const data = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${selectedDisaster.id}/reports/${reportId}/verify-image`, 'POST', { imageUrl });
+                    if (data) {
+                        showMessage('success', `Report ${reportId} verification updated to: ${data.verification_status}`);
+                        fetchReports(selectedDisaster.id); // Refresh reports list
+                    }
+                });
+            });
+        }
+
+        reportForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!selectedDisaster) {
+                showMessage('error', 'Please select a disaster first to submit a report.');
+                return;
+            }
+            const content = reportContentInput.value;
+            const imageUrl = reportImageUrlInput.value;
+
+            const payload = { content };
+            if (imageUrl) payload.image_url = imageUrl;
+
+            const data = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${selectedDisaster.id}/reports`, 'POST', payload);
+            if (data) {
+                showMessage('success', 'Report submitted successfully!');
+                reportForm.reset();
+                fetchReports(selectedDisaster.id); // Refresh reports list
+            }
+        });
+
+        // --- Resources ---
+        async function fetchResources(disasterId) {
+            resourcesList.innerHTML = '<li class="text-gray-500">Loading resources...</li>';
+            const lat = resourceLatInput.value;
+            const lon = resourceLonInput.value;
+            const radius = resourceRadiusInput.value;
+            const type = resourceFilterTypeSelect.value;
+
+            let queryParams = [];
+            if (lat && lon) {
+                // Ensure lat/lon are valid numbers
+                const parsedLat = parseFloat(lat);
+                const parsedLon = parseFloat(lon);
+                const parsedRadius = parseInt(radius, 10);
+
+                if (isNaN(parsedLat) || isNaN(parsedLon) || isNaN(parsedRadius) || parsedRadius <= 0) {
+                    showMessage('error', 'Invalid Latitude, Longitude, or Radius for resource filter. Please enter numbers.');
+                    resourcesList.innerHTML = '<li class="text-gray-500">Invalid filter parameters.</li>';
+                    return null; // Return null to indicate an error, prevent further execution
+                }
+
+                queryParams.push(`lat=${parsedLat}`);
+                queryParams.push(`lon=${parsedLon}`);
+                if (parsedRadius) queryParams.push(`radius=${parsedRadius}`);
+            }
+            if (type) {
+                queryParams.push(`type=${type}`);
+            }
+
+            const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+            const resources = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${disasterId}/resources${queryString}`);
+            renderResources(resources);
+        }
+
+        function renderResources(resources) {
+            resourcesList.innerHTML = '';
+            if (!resources || resources.length === 0) {
+                resourcesList.innerHTML = '<li class="text-gray-500">No resources found for this disaster.</li>';
+                return;
+            }
+            resources.forEach(resource => {
+                const li = document.createElement('li');
+                li.className = 'p-3 border border-gray-200 rounded-md bg-white shadow-sm';
+                li.innerHTML = `
+                    <p class="font-medium">${resource.name} (<span class="text-sm text-gray-600 capitalize">${resource.type}</span>)</p>
+                    <p class="text-xs text-gray-500">${resource.location_name}</p>
+                    ${resource.location && resource.location.coordinates ? `<p class="text-xs text-gray-500">Lat: ${resource.location.coordinates[1]}, Lon: ${resource.location.coordinates[0]}</p>` : ''}
+                `;
+                resourcesList.appendChild(li);
+            });
+        }
+
+        resourceForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!selectedDisaster) {
+                showMessage('error', 'Please select a disaster first to add a resource.');
+                return;
+            }
+            const name = resourceNameInput.value;
+            const location_name = resourceLocationNameInput.value;
+            const type = resourceTypeSelect.value;
+
+            const payload = { name, location_name, type };
+
+            const data = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${selectedDisaster.id}/resources`, 'POST', payload);
+            if (data) {
+                showMessage('success', `Resource "${data.name}" added successfully!`);
+                resourceForm.reset();
+                fetchResources(selectedDisaster.id); // Refresh resources list
+            }
+        });
+
+        filterResourcesBtn.addEventListener('click', () => {
+            if (selectedDisaster) {
+                fetchResources(selectedDisaster.id);
+            } else {
+                showMessage('error', 'Please select a disaster to filter resources.');
+            }
+        });
+
+
+        // --- Social Media ---
+        async function fetchSocialMedia(disasterId) {
+            socialMediaList.innerHTML = '<li class="text-gray-500">Loading social media reports...</li>';
+            const query = socialMediaQueryInput.value;
+            const socialMedia = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${disasterId}/social-media?query=${encodeURIComponent(query)}`);
+            renderSocialMedia(socialMedia);
+        }
+
+        function renderSocialMedia(posts) {
+            socialMediaList.innerHTML = '';
+            if (!posts || posts.length === 0) {
+                socialMediaList.innerHTML = '<li class="text-gray-500">No social media reports found.</li>';
+                return;
+            }
+            posts.forEach(post => {
+                const li = document.createElement('li');
+                li.className = 'p-3 border border-gray-200 rounded-md bg-white shadow-sm';
+                li.innerHTML = `
+                    <p class="font-medium">${post.content}</p>
+                    <p class="text-xs text-gray-500">By: ${post.user} at ${new Date(post.timestamp).toLocaleString()}</p>
+                `;
+                socialMediaList.appendChild(li);
+            });
+        }
+
+        fetchSocialMediaBtn.addEventListener('click', () => {
+            if (selectedDisaster) {
+                fetchSocialMedia(selectedDisaster.id);
+            } else {
+                showMessage('error', 'Please select a disaster to fetch social media reports.');
+            }
+        });
+
+
+        // --- Official Updates ---
+        async function fetchOfficialUpdates(disasterId) {
+            officialUpdatesList.innerHTML = '<li class="text-gray-500">Loading official updates...</li>';
+            const source = officialUpdateSourceSelect.value;
+            const queryString = source ? `?source=${encodeURIComponent(source)}` : '';
+            const updates = await makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${disasterId}/official-updates${queryString}`);
+            renderOfficialUpdates(updates);
+        }
+
+        function renderOfficialUpdates(updates) {
+            officialUpdatesList.innerHTML = '';
+            if (!updates || updates.length === 0) {
+                officialUpdatesList.innerHTML = '<li class="text-gray-500">No official updates found.</li>';
+                return;
+            }
+            updates.forEach(update => {
+                const li = document.createElement('li');
+                li.className = 'p-3 border border-gray-200 rounded-md bg-white shadow-sm';
+                li.innerHTML = `
+                    <p class="font-medium">${update.title}</p>
+                    <p class="text-sm text-gray-700">${update.content}</p>
+                    <p class="text-xs text-blue-500"><a href="${update.url}" target="_blank">${update.url}</a></p>
+                    <p class="text-xs text-gray-500">Published: ${new Date(update.published_at).toLocaleString()}</p>
+                `;
+                officialUpdatesList.appendChild(li);
+            });
+        }
+
+        fetchOfficialUpdatesBtn.addEventListener('click', () => {
+            if (selectedDisaster) {
+                fetchOfficialUpdates(selectedDisaster.id);
+            } else {
+                showMessage('error', 'Please select a disaster to fetch official updates.');
+            }
+        });
+
+
+        // --- Real-time updates with Socket.IO ---
+        socket.on('connect', () => {
+            console.log('Connected to Socket.IO server.');
+            showMessage('info', 'Connected to real-time updates!');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from Socket.IO server.');
+            showMessage('error', 'Disconnected from real-time updates. Please refresh.');
+        });
+
+        socket.on('disaster_updated', (data) => {
+            console.log('Disaster update received:', data);
+            showMessage('info', `Real-time: Disaster "${data.disaster?.title || data.disasterId}" ${data.type}. Refreshing list.`);
+            fetchDisasters(); // Re-fetch disasters to reflect changes
+            if (selectedDisaster && (data.disaster?.id === selectedDisaster.id || data.disasterId === selectedDisaster.id)) {
+                 // If the updated disaster is the currently selected one, re-select it to refresh its details
+                if (data.type !== 'deleted') {
+                    // Refetch the single disaster details to get the very latest, especially if location changed
+                    makeAuthenticatedRequest(`${API_BASE_URL}/disasters/${selectedDisaster.id}`)
+                        .then(disasterData => {
+                            if (disasterData) {
+                                selectDisaster(disasterData); // Re-render details with new data
+                            }
+                        })
+                        .catch(err => console.error('Error re-fetching selected disaster:', err));
+                } else {
+                    // If the selected disaster was deleted, hide details section
+                    selectedDisaster = null;
+                    disasterDetailsSection.classList.add('hidden');
+                }
+            }
+        });
+
+        socket.on('report_created', (data) => {
+            console.log('New report received:', data);
+            if (selectedDisaster && data.disasterId === selectedDisaster.id) {
+                showMessage('info', `Real-time: New report for ${selectedDisaster.title}: "${data.report.content.substring(0, 30)}..."`);
+                fetchReports(selectedDisaster.id); // Refresh reports for current disaster
+            }
+        });
+
+        socket.on('report_updated', (data) => {
+            console.log('Report updated received:', data);
+            if (selectedDisaster && data.report.disaster_id === selectedDisaster.id) {
+                showMessage('info', `Real-time: Report for ${selectedDisaster.title} updated (Status: ${data.report.verification_status}).`);
+                fetchReports(selectedDisaster.id); // Refresh reports for current disaster
+            }
+        });
+
+        socket.on('resources_updated', (data) => {
+            console.log('Resources updated received:', data);
+            if (selectedDisaster && data.disasterId === selectedDisaster.id) {
+                showMessage('info', `Real-time: New resource added to ${selectedDisaster.title}: "${data.resource.name}"`);
+                fetchResources(selectedDisaster.id); // Refresh resources for current disaster
+            }
+        });
+
+
+        // Initial load
+        loginUser(); // Attempt to log in with default selected user on page load
+        // fetchDisasters(); // REMOVED as it will be called inside loginUser on success
+    </script>
+</body>
+</html>
